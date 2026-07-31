@@ -1,0 +1,29 @@
+name: ci
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: Unit tests
+        run: node --test
+
+  dogfood:
+    # tenken checks its own agent config with the same three engines it ships.
+    # examples/bad is excluded on purpose — it is meant to fail.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install
+        run: npm install --omit=dev --no-audit --no-fund
+      - name: tenken self-check
+        run: node src/check.mjs AGENTS.md examples/good

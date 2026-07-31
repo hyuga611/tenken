@@ -1,0 +1,48 @@
+name: 'tenken agent-config check'
+description: 'Run reflint, skills-lint and carrylint over agent config in one pass: references, skill schema, trigger collisions, runtime portability.'
+author: 'hyuga611'
+branding:
+  icon: 'check-square'
+  color: 'blue'
+inputs:
+  paths:
+    description: 'Space-separated files or dirs to check. Default: the repo (SKILL.md / AGENTS.md / CLAUDE.md / llms.txt / .claude/commands …).'
+    required: false
+    default: ''
+  only:
+    description: 'Comma-separated engines to run (reflint, skills-lint, carrylint). Default: all three.'
+    required: false
+    default: ''
+  skip:
+    description: 'Comma-separated engines to leave out. Ignored when `only` is set.'
+    required: false
+    default: ''
+  strict:
+    description: 'Treat warnings as failures (exit 1).'
+    required: false
+    default: 'false'
+runs:
+  using: 'composite'
+  steps:
+    # Unlike the three linters it drives, tenken is not dependency-free: it imports them.
+    # Install into the action's own directory so the caller's node_modules is untouched.
+    - name: Install tenken dependencies
+      shell: bash
+      run: npm install --omit=dev --no-audit --no-fund --prefix "$GITHUB_ACTION_PATH"
+
+    - name: Run tenken
+      shell: bash
+      # Caller inputs are passed via env (NOT ${{ }} inlined into the script) to avoid
+      # template/shell injection. $PATHS is intentionally unquoted so multiple space-separated
+      # paths split into separate argv; the flag array is quote-safe.
+      env:
+        PATHS: ${{ inputs.paths }}
+        ONLY: ${{ inputs.only }}
+        SKIP: ${{ inputs.skip }}
+        STRICT: ${{ inputs.strict }}
+      run: |
+        args=()
+        [ -n "$ONLY" ] && args+=(--only "$ONLY")
+        [ -z "$ONLY" ] && [ -n "$SKIP" ] && args+=(--skip "$SKIP")
+        [ "$STRICT" = "true" ] && args+=(--strict)
+        node "$GITHUB_ACTION_PATH/src/check.mjs" "${args[@]}" $PATHS
