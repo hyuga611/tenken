@@ -132,6 +132,27 @@ function loadCarryRules() {
 }
 
 /**
+ * Does `p` resolve, for a document that lives in `dir` inside the tree rooted at `root`?
+ *
+ * Skill documents were previously resolved against their own folder only. That is right for
+ * a standalone published package (root === dir) but wrong for a skill checked into a
+ * repository, where `packages/x/y.ts` or `docs/z.md` is a perfectly good reference. Auditing
+ * openclaw/openclaw's 46 bundled skills, folder-only resolution called 139 of 197 references
+ * broken; every one of them existed in the repo.
+ *
+ * Deliberately the same predicate reflint's own CLI builds, so the two engines cannot
+ * disagree about whether a path exists.
+ */
+export function existsInSkillOrRepo(dir, root, p) {
+  return (
+    existsSync(resolve(dir, p)) ||
+    existsSync(resolve(root, p)) ||
+    existsInRepo(root, p) ||
+    isGitIgnored(root, p)
+  );
+}
+
+/**
  * Run all three engines and return findings in one normalised shape:
  * { file, line, engine, kind, severity, message }
  */
@@ -200,10 +221,20 @@ export function run(entries, opts = {}) {
       skills.push({ file, data: fm.data });
       const own = checkSkill({
         ...fm,
-        exists: (p) => existsSync(resolve(dir, p)),
+        // Same predicate as the reflint block above, for the same reason: a skill that
+        // lives inside a repository may reference anything in that repository. Resolving
+        // only against the skill's own folder reported 139 of 197 references as missing
+        // on openclaw/openclaw's 46 bundled skills (2026-08 audit) — all of them present.
+        // For a standalone skill package root === dir, so this is unchanged there.
+        exists: (p) => existsInSkillOrRepo(dir, root, p),
+        // Strict companion: "is this written as a path here", not "does it resolve anywhere".
+        // Without it `openclaw/openclaw` reads as a path because some deep directory happens
+        // to be named `openclaw`.
+        existsLocal: (p) => existsSync(resolve(dir, p)) || existsSync(resolve(root, p)),
         dirName: basename(dir),
       });
-      for (const f of own) push('skills-lint', file, f, 'error');
+      // Respect a severity the engine set on the finding; default to error.
+      for (const f of own) push('skills-lint', file, f, f.severity || 'error');
 
       const refInputs = [];
       for (const r of refMdByDir.get(slash(dir)) || []) {
@@ -216,7 +247,7 @@ export function run(entries, opts = {}) {
         refInputs.push({
           file: r.file,
           text: rtext,
-          exists: (p) => existsSync(resolve(r.dir, p)),
+          exists: (p) => existsInSkillOrRepo(r.dir, root, p),
         });
       }
       for (const f of checkReferenceFiles(refInputs)) {

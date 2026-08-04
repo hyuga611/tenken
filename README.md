@@ -32,6 +32,31 @@ of the same tree. `tenken` is the single door: it discovers files once and calls
 linters' exported checks. It has no rules of its own — the linters stay the source of truth, and
 each remains independently useful.
 
+## Tried on real code
+
+Not on fixtures. On the two biggest public bodies of agent config that exist, in August 2026.
+
+**The 46 skills bundled in [openclaw/openclaw](https://github.com/openclaw/openclaw)** (385k stars).
+13 genuine defects in 6 skills — including `/Users/steipete/openclaw` hardcoded into a shipped
+first-party skill, a skill instructing the agent to read `../openclaw-docs/SKILL.md` when no such
+skill exists, and four dangling test-fixture paths.
+
+**A random sample of 2,465 skills published on [ClawHub](https://clawhub.ai)** (drawn from 69,265
+enumerated, seed `20260804`):
+
+| | |
+|---|---|
+| declared `name` differs from the registry slug | **29.2%** |
+| `SKILL.md` ships with no YAML frontmatter at all — nothing for the agent to match on | **7.1%** |
+| an absolute path that resolves only on the author's machine | **3.8%** |
+
+The same run was also the harshest test of the linters themselves: on the openclaw corpus the
+tools first reported **201 errors for 13 real defects**. Five precision bugs were fixed before
+these numbers were published — repository-wide reference resolution, model ids read as file
+paths, artifacts excused only on the line that creates them, uppercase path templates, and
+indented frontmatter. Every case is pinned in `test/realworld.test.mjs` in the respective repo.
+A linter you cannot trust gets uninstalled, so the false positives were treated as the bugs.
+
 ## Install
 
 ```bash
