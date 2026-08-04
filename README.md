@@ -109,6 +109,21 @@ Environment: `TENKEN_FORMAT=json`, `TENKEN_STRICT=1`.
 
 Findings are emitted as annotations, so they appear inline on the pull request.
 
+## Use it from an agent
+
+[`skills/agent-config-lint/`](skills/agent-config-lint/SKILL.md) is a ready-to-use Agent Skill
+that teaches an agent when to run this and how to read the result. Copy the folder into your
+skills directory:
+
+```bash
+cp -r skills/agent-config-lint ~/.claude/skills/     # Claude Code
+cp -r skills/agent-config-lint ~/.openclaw/skills/   # OpenClaw
+```
+
+The agent then runs the check on its own before it ships a `SKILL.md`, `AGENTS.md`,
+`CLAUDE.md` or `llms.txt` — which is the moment the mistakes are cheapest to fix. The skill
+passes this linter itself; that is the point.
+
 ## JSON output
 
 ```json
