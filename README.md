@@ -37,9 +37,18 @@ each remains independently useful.
 Not on fixtures. On the two biggest public bodies of agent config that exist, in August 2026.
 
 **The 46 skills bundled in [openclaw/openclaw](https://github.com/openclaw/openclaw)** (385k stars).
-13 genuine defects in 6 skills — including `/Users/steipete/openclaw` hardcoded into a shipped
-first-party skill, a skill instructing the agent to read `../openclaw-docs/SKILL.md` when no such
-skill exists, and four dangling test-fixture paths.
+Two confirmed reference-rot defects, reported upstream as
+[#119393](https://github.com/openclaw/openclaw/issues/119393) with a fix in
+[#119394](https://github.com/openclaw/openclaw/pull/119394): `openclaw-refactor-docs` tells the
+agent to read `../openclaw-docs/SKILL.md` first, but that skill was deleted in `0dabb70` and
+replaced by `technical-documentation`; and `openclaw-test-heap-leaks` points at three fixture and
+script paths that exist nowhere in the tree.
+
+Checking each finding by hand mattered more than the count. A hardcoded
+`/Users/steipete/openclaw` looks like the textbook portability defect, and it is not one — that
+skill is an explicit single-machine runbook for the canonical live mirror. It was deliberately
+left out of the upstream report. **A portability linter finds candidates; a human decides which
+are bugs.**
 
 **A random sample of 2,465 skills published on [ClawHub](https://clawhub.ai)** (drawn from 69,265
 enumerated, seed `20260804`):
@@ -47,14 +56,16 @@ enumerated, seed `20260804`):
 | | |
 |---|---|
 | declared `name` differs from the registry slug | **29.2%** |
-| `SKILL.md` ships with no YAML frontmatter at all — nothing for the agent to match on | **7.1%** |
+| `SKILL.md` ships with no YAML frontmatter at all — nothing for the agent to match on | **7.8%** |
 | an absolute path that resolves only on the author's machine | **3.8%** |
 
-The same run was also the harshest test of the linters themselves: on the openclaw corpus the
-tools first reported **201 errors for 13 real defects**. Five precision bugs were fixed before
-these numbers were published — repository-wide reference resolution, model ids read as file
-paths, artifacts excused only on the line that creates them, uppercase path templates, and
-indented frontmatter. Every case is pinned in `test/realworld.test.mjs` in the respective repo.
+The same run was the harshest test of the linters themselves. On the openclaw corpus they first
+reported **219 findings**; after six precision fixes the same corpus reports **59**, and every
+defect above survives. The 160 that disappeared were all false positives — repository-wide
+reference resolution, model ids read as file paths, artifacts excused only on the line that
+creates them, uppercase path templates, indented frontmatter, and examples inside fenced code
+blocks. Every case is pinned in `test/realworld.test.mjs` in the respective repository.
+
 A linter you cannot trust gets uninstalled, so the false positives were treated as the bugs.
 
 ## Install
