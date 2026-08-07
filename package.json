@@ -1,6 +1,6 @@
 {
   "name": "@hyuga/tenken",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "One command for agent config: runs reflint (reference integrity), skills-lint (skill schema + trigger collisions) and carrylint (runtime portability) over one tree in a single pass, with one report, one exit code and one GitHub Action.",
   "type": "module",
   "main": "src/check.mjs",
@@ -34,7 +34,7 @@
   ],
   "dependencies": {
     "@hyuga/carrylint": "^0.2.2",
-    "@hyuga/reflint": "^0.8.3",
+    "@hyuga/reflint": "^0.9.0",
     "@hyuga/skills-lint": "^0.7.0"
   },
   "publishConfig": {

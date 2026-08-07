@@ -209,3 +209,73 @@ test('warnings do not fail the run unless --strict is given', () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// ---------------- --code-blocks reaches SKILL.md ----------------
+
+/**
+ * A path written as a bare command argument inside a fenced block carries no backticks and no
+ * link syntax, so skills-lint's markup-based scan cannot see it. reflint's --code-blocks rule can,
+ * but SKILL.md is not in REF_NAMES, so that check used to reach no skill at all. Reproduces
+ * openclaw/openclaw's control-ui-e2e, which ran a renamed test file inside a ```bash block.
+ */
+function skillWithFencedPath(dir) {
+  const sk = join(dir, '.claude', 'skills', 'ui-e2e');
+  mkdirSync(sk, { recursive: true });
+  mkdirSync(join(dir, 'ui', 'src', 'e2e'), { recursive: true });
+  writeFileSync(join(dir, 'ui', 'src', 'e2e', 'kept.e2e.test.ts'), '');
+  writeFileSync(
+    join(sk, 'SKILL.md'),
+    [
+      '---',
+      'name: ui-e2e',
+      'description: Run one Control UI end-to-end test in a worktree and report the result.',
+      '---',
+      '',
+      '# UI E2E',
+      '',
+      '```bash',
+      'node --test ui/src/ui/e2e/gone.e2e.test.ts',
+      '```',
+      '',
+    ].join('\n'),
+  );
+}
+
+test('--code-blocks: reflint reads bare command paths in SKILL.md (default does not)', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'tenken-'));
+  try {
+    skillWithFencedPath(dir);
+    const entries = collect([dir]);
+
+    const off = run(entries, { root: dir }).findings;
+    assert.equal(off.filter((f) => f.kind === 'code-path').length, 0);
+
+    const on = run(entries, { root: dir, codeBlocks: true }).findings;
+    const hit = on.filter((f) => f.kind === 'code-path');
+    assert.equal(hit.length, 1);
+    assert.equal(hit[0].engine, 'reflint');
+    assert.match(hit[0].file, /SKILL\.md$/);
+    assert.match(hit[0].message, /gone\.e2e\.test\.ts/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('--code-blocks: reflint says nothing else about a SKILL.md (skills-lint owns it)', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'tenken-'));
+  try {
+    const sk = join(dir, '.claude', 'skills', 'thing');
+    mkdirSync(sk, { recursive: true });
+    // A backticked path that does not resolve: skills-lint's finding, not reflint's.
+    writeFileSync(
+      join(sk, 'SKILL.md'),
+      ['---', 'name: thing', 'description: Do the thing and report what changed.', '---', '', 'Read `docs/gone.md`.', ''].join('\n'),
+    );
+    const { findings } = run(collect([dir]), { root: dir, codeBlocks: true });
+    const onSkill = findings.filter((f) => /SKILL\.md$/.test(f.file) && f.message.includes('docs/gone.md'));
+    assert.equal(onSkill.length, 1, 'the same reference must not be reported by two engines');
+    assert.equal(onSkill[0].engine, 'skills-lint');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

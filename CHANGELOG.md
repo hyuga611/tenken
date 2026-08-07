@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.3.0
+
+**`--code-blocks` reached no skill at all. Now it does.**
+
+A reference is not always wrapped in backticks or link syntax. A path written as a bare argument
+to a runnable command has no markup, and skills-lint finds references by their markup — so it
+cannot see that class at all, by construction. reflint's opt-in `--code-blocks` rule is the one
+that reads them.
+
+`SKILL.md` is not in reflint's `REF_NAMES`, because skills-lint owns that file. The consequence
+was invisible until it cost something: **reflint never received a single `SKILL.md`, so
+`--code-blocks` had no effect on skills.** In `openclaw/openclaw`,
+`.agents/skills/control-ui-e2e/SKILL.md` told the agent to run a test file that had been renamed,
+inside a ` ```bash ` block, and no engine looked there. Eight lines above, the same file names a
+path in prose with backticks — skills-lint caught that one. The difference was the markup, not the
+severity.
+
+With `--code-blocks`, reflint now also runs over `SKILL.md`, and **only its `code-path` findings
+are kept.** Everything else reflint would say about a `SKILL.md` is skills-lint's to say and would
+be reported twice; there is a test for that. Default behaviour is unchanged — without the flag,
+fenced content is still skipped everywhere.
+
+Requires `@hyuga/reflint` ^0.9.0, where the rule itself went from 133 findings for 1 real defect
+to 2 findings for 1, measured on 80 skills across 4 repositories. See reflint's CHANGELOG 0.9.0
+for what the other 132 were and why the flag stays opt-in.
+
 ## 0.2.0
 
 - **skills-lint now resolves references the same way reflint does.** 0.1.0 promised that "a

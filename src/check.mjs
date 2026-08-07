@@ -182,7 +182,18 @@ export function run(entries, opts = {}) {
 
   // --- reflint: do the references resolve ---
   if (enabled('reflint')) {
-    for (const { file } of refFiles) {
+    // With --code-blocks, reflint also reads paths written as bare command arguments inside
+    // fenced blocks — the one place a reference carries no backticks and no link syntax, so
+    // skills-lint's markup-based scan cannot see it. `SKILL.md` is not in REF_NAMES (skills-lint
+    // owns it), which meant that check never reached a single skill: openclaw/openclaw's
+    // control-ui-e2e ran a renamed test file inside a ```bash block and no engine looked.
+    // Reflint runs over skills too, but only its `code-path` findings are kept — everything
+    // else it would say about a SKILL.md is skills-lint's to say, and would double-report.
+    const targets = [
+      ...refFiles.map((e) => ({ ...e, only: null })),
+      ...(codeBlocks ? skillFiles.map((e) => ({ ...e, only: 'code-path' })) : []),
+    ];
+    for (const { file, only } of targets) {
       let text;
       try {
         text = read(file);
@@ -201,6 +212,7 @@ export function run(entries, opts = {}) {
         isGitIgnored(root, p);
       const scripts = nearestScripts(fileDir, root);
       for (const f of refScan(text, { scripts, exists, codeBlocks, ignore })) {
+        if (only && f.kind !== only) continue;
         push('reflint', file, f, 'error');
       }
     }
