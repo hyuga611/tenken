@@ -9,7 +9,7 @@
  * The three linters stay the source of truth: this file discovers files and calls
  * their exported checks. It contains no rules of its own.
  */
-import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync, existsSync, realpathSync } from 'node:fs';
 import { join, dirname, basename, resolve, sep } from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
@@ -471,6 +471,27 @@ export function main(argv) {
   return 0;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+/**
+ * Was this run directly, or imported?
+ *
+ * argv[1] is the path as invoked, and both `npm i -g` and `npx` put a symlink
+ * there. import.meta.url is the resolved real path, so the two never matched for
+ * an installed copy and the CLI did nothing at all: exit 0, no output. That is the
+ * worst way for a linter to break, because "found no problems" and "never ran" are
+ * the same observation — and a CI step reading the exit code cannot tell them
+ * apart either. Resolve the link before comparing.
+ */
+function runDirectly() {
+  const arg = process.argv[1];
+  if (!arg) return false;
+  if (import.meta.url === pathToFileURL(arg).href) return true;
+  try {
+    return import.meta.url === pathToFileURL(realpathSync(arg)).href;
+  } catch {
+    return false;
+  }
+}
+
+if (runDirectly()) {
   process.exit(main(process.argv.slice(2)));
 }
