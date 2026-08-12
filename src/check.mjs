@@ -11,7 +11,7 @@
  */
 import { readdirSync, readFileSync, statSync, existsSync, realpathSync } from 'node:fs';
 import { join, dirname, basename, resolve, sep } from 'node:path';
-import { pathToFileURL, fileURLToPath } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 
 import { scan as refScan, nearestScripts, existsInRepo, isGitIgnored } from '@hyuga/reflint';
@@ -347,7 +347,10 @@ export function parseArgs(argv) {
   let threshold;
   const ignore = new Set();
   const allow = new Set();
-  const addTo = (set, s) => asSet(s).forEach((x) => set.add(x));
+  const addTo = (set, s) =>
+    asSet(s).forEach((x) => {
+      set.add(x);
+    });
   const engines = (s) => {
     const wanted = asSet(s);
     for (const e of wanted) {
