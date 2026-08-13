@@ -12,6 +12,16 @@
 import { readdirSync, readFileSync, statSync, existsSync, realpathSync } from 'node:fs';
 import { join, dirname, basename, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
+
+// Read rather than hardcoded: a version constant is one more place a release has to
+// remember, and the one that nobody notices going stale.
+const VERSION = (() => {
+  try {
+    return JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
+  } catch {
+    return 'unknown';
+  }
+})();
 import { createRequire } from 'node:module';
 
 import { scan as refScan, nearestScripts, existsInRepo, isGitIgnored } from '@hyuga/reflint';
@@ -339,6 +349,7 @@ const asSet = (s) =>
 
 export function parseArgs(argv) {
   const paths = [];
+  const unknown = [];
   let asJson = process.env.TENKEN_FORMAT === 'json';
   let strict = process.env.TENKEN_STRICT === '1';
   let only = null;
@@ -380,10 +391,14 @@ export function parseArgs(argv) {
     else if (a.startsWith('--allow=')) addTo(allow, a.slice(8));
     else if (a === '--threshold') threshold = parseFloat(argv[++i]);
     else if (a.startsWith('--threshold=')) threshold = parseFloat(a.slice(12));
+    // A token starting with "-" is never a path. Letting one through as a path is
+    // how a mistyped CI flag turned this linter off: it scanned a directory that
+    // did not exist, found nothing, and exited 0 with the check still green.
+    else if (a.startsWith('-')) unknown.push(a);
     else paths.push(a);
   }
   if (Number.isNaN(threshold)) threshold = undefined;
-  return { paths, asJson, strict, only, codeBlocks, modelIds, threshold, ignore, allow };
+  return { paths, unknown, asJson, strict, only, codeBlocks, modelIds, threshold, ignore, allow };
 }
 
 function defaultTargets() {
@@ -414,7 +429,32 @@ function report(findings, inActions) {
   }
 }
 
+const HELP = `tenken ${VERSION} — reflint, skills-lint and carrylint over one repo, in one pass
+
+  tenken [path ...]         default: SKILL.md, AGENTS.md, CLAUDE.md, llms.txt
+
+  --only a,b | --skip a,b   which engines to run (${ENGINES.join(', ')})
+  --strict                  warnings fail the run too
+  --code-blocks             also check paths inside fenced code blocks
+  --model-ids               flag pinned model identifiers
+  --ignore a,b              skip these paths
+  --allow a,b               skill names allowed to collide
+  --threshold <0..1>        collision sensitivity
+  --format json | --json    machine-readable output
+  -h, --help  ·  -v, --version
+
+  exit 0 nothing to fix (or nothing to check) / 1 findings / 2 could not run
+`;
+
 export function main(argv) {
+  if (argv.includes('--help') || argv.includes('-h')) {
+    process.stdout.write(HELP);
+    return 0;
+  }
+  if (argv.includes('--version') || argv.includes('-v')) {
+    process.stdout.write(VERSION + '\n');
+    return 0;
+  }
   const inActions = process.env.GITHUB_ACTIONS === 'true';
   let args;
   try {
@@ -423,7 +463,12 @@ export function main(argv) {
     console.error(`tenken: ${e.message}`);
     return 2;
   }
-  const { paths, asJson, strict, only, codeBlocks, modelIds, threshold, ignore, allow } = args;
+  const { paths, unknown, asJson, strict, only, codeBlocks, modelIds, threshold, ignore, allow } = args;
+  if (unknown.length) {
+    console.error(`tenken: unknown option ${unknown.join(', ')}`);
+    console.error('tenken: run with --help to see what it takes');
+    return 2;
+  }
 
   const entries = collect(paths.length ? paths : defaultTargets());
   if (entries.length === 0) {
